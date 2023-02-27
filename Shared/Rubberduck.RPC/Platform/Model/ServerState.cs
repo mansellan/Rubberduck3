@@ -1,8 +1,8 @@
-﻿using OmniSharp.Extensions.LanguageServer.Protocol.Models;
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Linq;
 using System.Text.Json.Serialization;
+using System.Threading;
 
 namespace Rubberduck.RPC.Platform.Model
 {
@@ -51,7 +51,7 @@ namespace Rubberduck.RPC.Platform.Model
         /// <summary>
         /// The clients connected to this server.
         /// </summary>
-        ClientInfo[] Clients { get; }
+        RpcClientInfo[] Clients { get; }
         /// <summary>
         /// Whether the JsonRpcServer is alive and accepts client connections.
         /// </summary>
@@ -77,10 +77,6 @@ namespace Rubberduck.RPC.Platform.Model
         /// </summary>
         int Threads { get; }
         /// <summary>
-        /// Time elapsed since this server was started. <c>null</c> if the server wasn't started.
-        /// </summary>
-        TimeSpan? UpTime { get; }
-        /// <summary>
         /// Working set memory, in bytes.
         /// </summary>
         long WorkingSet { get; }
@@ -93,7 +89,10 @@ namespace Rubberduck.RPC.Platform.Model
     /// </summary>
     public class ServerState : BasicServerInfo, IServerState
     {
-        private readonly ConcurrentDictionary<string, (ClientInfo Client, bool Initialized)> _clients = new ConcurrentDictionary<string, (ClientInfo, bool)>();
+        private readonly ConcurrentDictionary<string, (RpcClientInfo Client, bool Initialized)> _clients = new ConcurrentDictionary<string, (RpcClientInfo, bool)>();
+
+        private int _received = 0;
+        private int _sent = 0;
 
         public ServerState() { }
 
@@ -106,7 +105,6 @@ namespace Rubberduck.RPC.Platform.Model
             MessagesSent = info.MessagesSent;
             MessagesReceived = info.MessagesReceived;
             IsAlive = info.IsAlive;
-            UpTime = info.UpTime;
             Status = info.Status;
 
             Clients = info.Clients;
@@ -121,12 +119,15 @@ namespace Rubberduck.RPC.Platform.Model
             StartTime = info.StartTime;
         }
 
+        public void OnMessageReceived() => Interlocked.Increment(ref _received);
+        public void OnMessageSent() => Interlocked.Increment(ref _sent);
+
         /// <summary>
         /// Adds the specified client to the server state.
         /// </summary>
         /// <param name="client">The client to be added.</param>
         /// <returns><c>true<c/> if the client was successfully added.</returns>
-        public bool Connect(ClientInfo client)
+        public bool Connect(RpcClientInfo client)
         {
             var didConnect = false;
 
@@ -143,7 +144,7 @@ namespace Rubberduck.RPC.Platform.Model
         /// Removes from the server state the client associated to the specified client.
         /// </summary>
         /// <returns><c>true</c> if the client was successfully removed.</returns>
-        public bool Disconnect(string name, out ClientInfo client)
+        public bool Disconnect(string name, out RpcClientInfo client)
         {
             client = null;
             var didRemove = false;
@@ -184,13 +185,13 @@ namespace Rubberduck.RPC.Platform.Model
         public int Threads { get; set; }
 
         [JsonPropertyName("clients")]
-        public ClientInfo[] Clients { get; set; }
+        public RpcClientInfo[] Clients { get; set; }
 
         [JsonPropertyName("sent")]
-        public int MessagesSent { get; set; }
+        public int MessagesSent { get => _sent; set => _sent = value; }
 
         [JsonPropertyName("received")]
-        public int MessagesReceived { get; set; }
+        public int MessagesReceived { get => _received; set => _received = value; }
 
         [JsonPropertyName("isAlive")]
         public bool IsAlive { get; set; }

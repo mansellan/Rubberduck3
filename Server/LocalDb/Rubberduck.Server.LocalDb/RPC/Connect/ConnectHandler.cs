@@ -1,20 +1,31 @@
-﻿using OmniSharp.Extensions.JsonRpc;
+﻿using Microsoft.Extensions.Logging;
+using Rubberduck.RPC.Platform;
+using Rubberduck.RPC.Platform.Model;
+using Rubberduck.RPC.Platform.Model.LocalDb.Responses;
 using System;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace Rubberduck.Server.LocalDb.RPC.Connect
 {
-    internal class ConnectHandler : IJsonRpcRequestHandler<ConnectRequest, ConnectResult>
+    internal class ConnectHandler : JsonRpcRequestHandler<ConnectRequest, SuccessResult>
     {
-        public ConnectHandler()
-        {
+        private readonly ServerState _serverState;
 
+        public ConnectHandler(ILogger logger, ServerState serverState)
+            : base(logger)
+        {
+            _serverState = serverState;
         }
 
-        public Task<ConnectResult> Handle(ConnectRequest request, CancellationToken cancellationToken)
+        protected override async Task<SuccessResult> HandleAsync(ConnectRequest request)
         {
-            throw new NotImplementedException();
+            var client = request.Params.ToObject<RpcClientInfo>();
+            if (_serverState.Connect(client))
+            {
+                return await Task.FromResult(new SuccessResult());
+            }
+
+            throw new ApplicationException("The operation failed.");
         }
     }
 }
